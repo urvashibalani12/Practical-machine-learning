@@ -1,0 +1,147 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Urvashi B"
+date: "18/05/2021"
+output: html_document
+
+## Background
+### Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+### In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here:
+
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r,echo=TRUE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(corrplot)
+library(gbm)
+```
+
+## Getting, Cleaning and Exploring the data
+```{r,echo=TRUE}
+traincsv <- read.csv("./data/pml-training.csv")
+testcsv <- read.csv("./data/pml-testing.csv")
+dim(traincsv)
+dim(testcsv)
+```
+
+##Cleaning the Data
+###Removing unnecessary variables. Starting with N/A variables.
+```{r,echo=TRUE}
+traincsv <- traincsv[,colMeans(is.na(traincsv)) < .9] #removing mostly na columns
+traincsv <- traincsv[,-c(1:7)] #removing metadata which is irrelevant to the outcome
+```
+
+###Removing near zero variance variables.
+```{r,echo=TRUE}
+nvz <- nearZeroVar(traincsv)
+traincsv <- traincsv[,-nvz]
+dim(traincsv)
+```
+
+###Now that we have finished removing the unnecessary variables, we can now split the training set into a validation and sub training set. The testing set “testcsv” will be left alone, and used for the final quiz test cases.
+```{r,echo=TRUE}
+inTrain <- createDataPartition(y=traincsv$classe, p=0.7, list=F)
+train <- traincsv[inTrain,]
+valid <- traincsv[-inTrain,]
+```
+
+##Creating and Testing the Models
+###Here we will test a few popular models including: Decision Trees, Random Forest, Gradient Boosted Trees, and SVM. This is probably more than we will need to test, but just out of curiosity and good practice we will run them for comparison.
+
+###Set up control for training to use 3-fold cross validation.
+
+```{r,echo=TRUE}
+control <- trainControl(method="cv", number=3, verboseIter=F)
+```
+
+##Decision Tree
+
+```{r,echo=TRUE}
+mod_trees <- train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5)
+fancyRpartPlot(mod_trees$finalModel)
+```
+
+###Prediction
+```{r,echo=TRUE}
+pred_trees <- predict(mod_trees, valid)
+cmtrees <- confusionMatrix(pred_trees, factor(valid$classe))
+cmtrees
+```
+
+##Random Forest
+```{r,echo=TRUE}
+mod_rf <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+
+pred_rf <- predict(mod_rf, valid)
+cmrf <- confusionMatrix(pred_rf, factor(valid$classe))
+cmrf
+```
+
+##Gradient Boosted Trees
+```{r,echo=TRUE}
+mod_gbm <- train(classe~., data=train, method="gbm", trControl = control, tuneLength = 5, verbose = F)
+
+pred_gbm <- predict(mod_gbm, valid)
+cmgbm <- confusionMatrix(pred_gbm, factor(valid$classe))
+cmgbm
+```
+
+##Support Vector Machine
+```{r,echo=TRUE}
+mod_svm <- train(classe~., data=train, method="svmLinear", trControl = control, tuneLength = 5, verbose = F)
+
+pred_svm <- predict(mod_svm, valid)
+cmsvm <- confusionMatrix(pred_svm, factor(valid$classe))
+cmsvm
+```
+
+##Results (Accuracy & Out of Sample Error)
+###accuracy oos_error
+## Tree    0.537     0.463
+## RF      0.996     0.004
+## GBM     0.992     0.008
+## SVM     0.781     0.219
+
+###The best model is the Random Forest model, with 0.9957519 accuracy and 0.0042481 out of sample error rate. We find that to be a sufficient enough model to use for our test sets.
+
+##Predictions on Test Set
+###Running our test set to predict the classe (5 levels) outcome for 20 cases with the Random Forest model.
+
+```{r,echo=TRUE}
+pred <- predict(mod_rf, testcsv)
+print(pred)
+```
+
+##Appendix
+###correlation matrix of variables in training set
+
+```{r,echo=TRUE}
+corrPlot <- cor(train[, -length(names(train))])
+corrplot(corrPlot, method="color")
+```
+
+###Plotting the models
+```{r,echo=TRUE}
+plot(mod_trees)
+```
+
+```{r,echo=TRUE}
+plot(mod_rf)
+```
+
+```{r,echo=TRUE}
+plot(mod_gbm)
+```
+
+
+
+
